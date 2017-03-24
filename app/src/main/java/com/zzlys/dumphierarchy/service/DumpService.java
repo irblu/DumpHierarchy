@@ -7,6 +7,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
 
 /**
  * Created by ziliang.z on 2017/3/2.
@@ -32,11 +34,17 @@ import java.util.List;
 public class DumpService extends AccessibilityService {
     private static final String TAG = "DumpHierarchy";
     Handler _handler;
+    boolean _running;
     String _outputString;
     ScreenShotListenManager _screenShotListener;
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         Log.d("DumpEvent", event.toString());
+//        if(event.getEventType() == TYPE_WINDOW_CONTENT_CHANGED && event.getPackageName().equals("com.samsung.android.app.scrollcapture")
+//                && event.isEnabled() == false) {
+//            Log.d(TAG, "Screen Capture detected! Dump UI Hierachy in 1s");
+//            _handler.sendEmptyMessageDelayed(1,1000);
+//        }
     }
 
     @Override
@@ -117,6 +125,23 @@ public class DumpService extends AccessibilityService {
     @Override
     public void onInterrupt() {
 
+    }
+
+    @Override
+    protected boolean onKeyEvent(KeyEvent event) {
+//        if (_running) {
+//            _handler.removeCallbacksAndMessages(null);
+//            Toast.makeText(getApplicationContext(), "Stop dumping UI", Toast.LENGTH_SHORT).show();
+//            _running = false;
+//        }
+//        AccessibilityNodeInfo root = getRootInActiveWindow();
+//        if (root != null) {
+//            List<AccessibilityNodeInfo> list = root.findAccessibilityNodeInfosByText("网易云音乐");
+//            if(list.size()>0) {
+//                list.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+//            }
+//        }
+        return super.onKeyEvent(event);
     }
 
     public void dumpHierarchy(AccessibilityNodeInfo root) {

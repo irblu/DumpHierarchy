@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">DumpHierarchy</string>
+    <string name="title_activity_main">DumpHierarchy</string>
+    <string name="accessibility_service_description">请打开右上开关，在弹出的对话框中点击“确定”。\n
+    \n
+    开启后，可以通过状态栏的DUMP TO LOG按钮来将UI层次结构输出到log，或者通过使用截屏，将UI层次结构保存到/sdcard/DumpHierarchy文件夹内，即可在电脑中使用 UI Automator Viewer 打开查看。</string>
+</resources>
