@@ -1,7 +1,9 @@
 # DumpHierarchy
-Dump the UI hierarchy of the screen of android.
-Supporting dynamic screen.
-
+Dump the UI hierarchy of the screen of android.  
+Use with UI Automator Viewer.  
+Supporting dynamic screen.  
+  
+获取Android手机界面的UI结构，使用UI Automator Viewer打开，支持动态界面。  
 
 # Apk download address
 [bitbottle.com](http://www.bitbottle.com/archives/287.html#4_APK)  
