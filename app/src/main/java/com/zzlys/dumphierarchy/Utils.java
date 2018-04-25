@@ -10,6 +10,7 @@ import java.util.List;
  */
 
 public class Utils {
+
     /**
      * 判断某个服务是否正在运行的方法
      *
@@ -35,4 +36,25 @@ public class Utils {
         }
         return isWork;
     }
+
+    public static int[] formatPath2Ints(String path) {
+        String[] strs = path.split(":");
+        int size = strs.length;
+        int[] rsl = new int[size];
+        for(int i = 0; i<size; i++) {
+            rsl[i] = Integer.parseInt(strs[size - i - 1]) - 1;
+        }
+        return rsl;
+    }
+
+    public static String formatPath2String(String path) {
+        String[] strs = path.split(":");
+        int size = strs.length;
+        String  rsl = "";
+        for(int i = 0; i<size; i++) {
+            rsl += (Integer.parseInt(strs[size - i - 1]) - 1) + "." ;
+        }
+        return rsl;
+    }
+
 }
