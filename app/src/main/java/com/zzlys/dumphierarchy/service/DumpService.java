@@ -1,20 +1,43 @@
 package com.zzlys.dumphierarchy.service;
 
+import android.Manifest;
 import android.accessibilityservice.AccessibilityService;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.drawable.Icon;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.Log;
-import android.view.KeyEvent;
+import android.view.Gravity;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
+import android.widget.RemoteViews;
+import android.widget.TextView;
 import android.widget.Toast;
 
 
+import com.zzlys.dumphierarchy.Constants;
+import com.zzlys.dumphierarchy.R;
 import com.zzlys.dumphierarchy.ScreenShotListenManager;
+import com.zzlys.dumphierarchy.view.FileListActivity;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -25,7 +48,10 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
+import static android.app.Notification.FLAG_ONGOING_EVENT;
+import static com.zzlys.dumphierarchy.Constants.DUMP_FOLDER_DIR;
+import static com.zzlys.dumphierarchy.Constants.EXTERNAL_STORAGE_PERMISSION_REQUEST_CODE;
+
 
 /**
  * Created by ziliang.z on 2017/3/2.
@@ -34,17 +60,71 @@ import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_
 public class DumpService extends AccessibilityService {
     private static final String TAG = "DumpHierarchy";
     Handler _handler;
-    boolean _running;
     String _outputString;
     ScreenShotListenManager _screenShotListener;
+
+    private Notification _notification;
+    private NotificationManager _notiManager;
+    private WindowManager _windowManager;
+    private TextView _textView;
+    private BroadcastReceiver _receiver;
+    private String _activityName = "UNKNOWN";
+    private String _appName = "UNKNOWN";
+    private String _versionCode = "";
+
+    private static final int MSG_CHECK_PERMISSION = 81;
+    private static final int MSG_SCREENSHOT_DETACTED = 346;
+    private static final int MSG_CANCLE_MSG = 482;
+
+    private boolean _showActivityToast = true;
+    private String _screenshotPath = null;
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         Log.d("DumpEvent", event.toString());
-//        if(event.getEventType() == TYPE_WINDOW_CONTENT_CHANGED && event.getPackageName().equals("com.samsung.android.app.scrollcapture")
-//                && event.isEnabled() == false) {
-//            Log.d(TAG, "Screen Capture detected! Dump UI Hierachy in 1s");
-//            _handler.sendEmptyMessageDelayed(1,1000);
-//        }
+        if(event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (event.getPackageName() != null && event.getClassName() != null) {
+                ComponentName componentName = new ComponentName(
+                        event.getPackageName().toString(),
+                        event.getClassName().toString()
+                );
+
+                ActivityInfo activityInfo = tryGetActivity(componentName);
+                boolean isActivity = activityInfo != null;
+                if (isActivity) {
+                    if(_showActivityToast)
+                        showMsg(componentName.flattenToShortString(), 3000);
+                    _activityName = event.getClassName().toString();
+                    _activityName = _activityName.substring(_activityName.lastIndexOf('.') + 1);
+                    _appName = tryGetAppName(event.getPackageName().toString());
+                    _versionCode = tryGetAppVersionCodeString(event.getPackageName().toString());
+                }
+            }
+        }
+    }
+
+    private ActivityInfo tryGetActivity(ComponentName componentName) {
+        try {
+            return getPackageManager().getActivityInfo(componentName, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            return null;
+        }
+    }
+
+    private String tryGetAppName(String packageName) {
+        try {
+            return getPackageManager().getPackageInfo(packageName, 0).applicationInfo.loadLabel(getPackageManager()).toString();
+        } catch (PackageManager.NameNotFoundException e) {
+            return "";
+        }
+    }
+
+    private String tryGetAppVersionCodeString(String packageName) {
+        try {
+            return getPackageManager().getPackageInfo(packageName, 0).versionCode + "";
+        } catch (PackageManager.NameNotFoundException e) {
+            return "";
+        }
     }
 
     @Override
@@ -53,7 +133,18 @@ public class DumpService extends AccessibilityService {
         _handler = new Handler(new Handler.Callback() {
             @Override
             public boolean handleMessage(Message msg) {
-                dump(true);
+                switch (msg.what) {
+                    case MSG_CHECK_PERMISSION:
+                        if(!checkPermission() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+                            disableSelf();
+                        break;
+                    case MSG_SCREENSHOT_DETACTED:
+                        dump(true);
+                        break;
+                    case MSG_CANCLE_MSG:
+                        dismissMsg();
+                        break;
+                }
                 return false;
             }
         });
@@ -62,19 +153,58 @@ public class DumpService extends AccessibilityService {
         _screenShotListener.setListener(
             new ScreenShotListenManager.OnScreenShotListener() {
             public void onShot(String imagePath) {
-                Log.d(TAG, "Screen Capture detected! Dump UI Hierarchy in 1s");
-                _handler.sendEmptyMessageDelayed(1,1000);
+                _screenshotPath = imagePath;
+                SharedPreferences sp = getSharedPreferences(Constants.DELAY_TIME_MS, Context.MODE_PRIVATE);
+                int delayTime = sp.getInt(Constants.DELAY_TIME_MS, 2000);
+                String msg = String.format(getString(R.string.SCREEN_CAPTURE_DETECTED_DUMP_UI_HIERARCHY_IN), delayTime/1000.0);
+                showMsg(msg);
+                Log.d(TAG, "Screen Capture detected! Dump UI Hierarchy in " + delayTime/1000.0 + "s");
+                _handler.sendEmptyMessageDelayed(MSG_SCREENSHOT_DETACTED,delayTime);
             }
         }
         );
 
         _screenShotListener.startListen();
+
+        createNoti();
+        _handler.sendEmptyMessageDelayed(MSG_CHECK_PERMISSION,100);
+
+        _receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                _showActivityToast = intent.getBooleanExtra(Constants.SHOW_ACTIVITY_TOAST, false);
+            }
+        };
+        registerReceiver(_receiver, new IntentFilter(Constants.SHOW_ACTIVITY_TOAST));
+        SharedPreferences spShowActivityToast = getSharedPreferences(Constants.SHOW_ACTIVITY_TOAST, Context.MODE_PRIVATE);
+        _showActivityToast = spShowActivityToast.getBoolean(Constants.SHOW_ACTIVITY_TOAST, false);
+
+        _windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+    }
+
+    private void createNoti() {
+        _notiManager = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+
+        Intent intent = new Intent();
+        intent.setClass(getApplicationContext(), FileListActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(),2,intent,PendingIntent.FLAG_CANCEL_CURRENT);
+        Notification.Builder builder = new Notification.Builder(getApplicationContext());
+        _notification= new Notification.Builder(getApplicationContext())
+                .setContentTitle(getString(R.string.DUMPHIERARCHY_RUNNING))
+                .setContentText(getString(R.string.TAKE_A_SCREENSHOT_TO_CAPTURE_UI_HIERARCHY))
+                .setSmallIcon(R.drawable.ic_stat_dh)
+                .setContentIntent(pendingIntent)
+                //.setLargeIcon(Icon.createWithResource(getApplicationContext(),R.drawable.ic_action_dh))
+                .setOngoing(true)
+                .build();
+        _notiManager.notify(0,_notification);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         _screenShotListener.stopListen();
+        _notiManager.cancelAll();
     }
 
 
@@ -96,52 +226,46 @@ public class DumpService extends AccessibilityService {
     }
 
     private void dump(boolean dump2file) {
+
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null)
             root = getRootInTopWindow();
         if (root == null) {
-            Toast.makeText(getApplicationContext(),"Get root view failed, cannot dump UI hierarchy...", Toast.LENGTH_SHORT).show();
+            String msg = getString(R.string.GET_ROOT_VIEW_FAILED_PLEASE_CHECK_YOUR_ACCESSIBILITY_SETTING);
+            showMsg(msg, 2000);
             return;
         }
-        Toast.makeText(getApplicationContext(),"Dumping UI Hierarchy...", Toast.LENGTH_SHORT).show();
+        String msg = "Dumping UI Hierarchy...";
+        showMsg(msg);
+
         dumpHierarchy(root);
         if (dump2file && root!= null) {
             logNode2Xml(root);
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddhhmmss");
+            SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
             Date curDate = new Date(System.currentTimeMillis());//获取当前时间
             String time = formatter.format(curDate);
-            String dir = Environment.getExternalStorageDirectory() + "/DumpHierarchy";
+            String dir = DUMP_FOLDER_DIR;
             File file = new File(dir);
             if(!file.exists()) {
                 file.mkdir();
             }
-            String name = file.getPath() + "/dump_" + time;
+            dir = dir + File.separator + _appName + _versionCode;
+            file = new File(dir);
+            if(!file.exists()) {
+                file.mkdir();
+            }
+            String name = file.getPath() + File.separator + _activityName + "_" + time;
             write2file(name + ".uix", _outputString);
             copyLastestScreenshot(name + ".png");
         }
-        Toast.makeText(getApplicationContext(),"Dump UI Hierarchy completed.", Toast.LENGTH_SHORT).show();
+
+        msg = getString(R.string.DUMP_UI_HIERARCHY_COMPLETED);
+        showMsg(msg, 2000);
     }
 
     @Override
     public void onInterrupt() {
 
-    }
-
-    @Override
-    protected boolean onKeyEvent(KeyEvent event) {
-//        if (_running) {
-//            _handler.removeCallbacksAndMessages(null);
-//            Toast.makeText(getApplicationContext(), "Stop dumping UI", Toast.LENGTH_SHORT).show();
-//            _running = false;
-//        }
-//        AccessibilityNodeInfo root = getRootInActiveWindow();
-//        if (root != null) {
-//            List<AccessibilityNodeInfo> list = root.findAccessibilityNodeInfosByText("网易云音乐");
-//            if(list.size()>0) {
-//                list.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
-//            }
-//        }
-        return super.onKeyEvent(event);
     }
 
     public void dumpHierarchy(AccessibilityNodeInfo root) {
@@ -252,11 +376,11 @@ public class DumpService extends AccessibilityService {
         Rect rc = new Rect();
         node.getBoundsInScreen(rc);
         rsl = ""
-                + " text=\"" + node.getText()
-                + "\" resource-id=\"" + node.getViewIdResourceName()
-                + "\" class=\"" + node.getClassName()
-                + "\" package=\"" + node.getPackageName()
-                + "\" content-desc=\"" + node.getContentDescription()
+                + " text=\"" + (TextUtils.isEmpty(node.getText())?"":node.getText().toString().replace("<","&lt;").replace(">","&gt;").replace("&","&amp;").replace("\"","&quot;").replace("\'","&apos;"))
+                + "\" resource-id=\"" + (node.getViewIdResourceName()==null?"":node.getViewIdResourceName())
+                + "\" class=\"" + (node.getClassName()==null?"":node.getClassName())
+                + "\" package=\"" + (node.getPackageName()==null?"":node.getPackageName())
+                + "\" content-desc=\"" + (node.getContentDescription()==null?"":node.getContentDescription().toString().replace("<","&lt;").replace(">","&gt;").replace("&","&amp;").replace("\"","&quot;").replace("\'","&apos;"))
                 + "\" checkable=\"" + node.isCheckable()
                 + "\" checked=\"" + node.isChecked()
                 + "\" clickable=\"" + node.isClickable()
@@ -315,17 +439,7 @@ public class DumpService extends AccessibilityService {
     }
 
     private void copyLastestScreenshot(String filename) {
-        String PATH = Environment.getExternalStorageDirectory() + "/";
-        File screenshotDir = new File(PATH + "/DCIM/Screenshots");
-        if (!screenshotDir.exists()) {
-            Toast.makeText(getApplicationContext(), "未找到/DCIM/Screenshots文件夹", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final File[] files = screenshotDir.listFiles();
-        File lastFile = null;
-        for(File file : files) {
-            lastFile = file;
-        }
+        File lastFile = new File(_screenshotPath);
         if(lastFile == null)
             return;
         try {
@@ -353,4 +467,63 @@ public class DumpService extends AccessibilityService {
 
         }
     }
+
+    public boolean checkPermission() {
+        if(Build.VERSION.SDK_INT > 23 ) {
+            try {
+                int hasWriteExternalStoragePermission = getApplication().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE);//权限检查
+                if (hasWriteExternalStoragePermission != PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(getApplicationContext(), getString(R.string.PERMISSION_CHECK_FAILED_PLEASE_CHECK_WRITE_EXTERNAL_STORAGE_PERMISSION), Toast.LENGTH_LONG).show();
+                    return false;
+                }
+                return true;
+            } catch (Exception e) {
+                e.printStackTrace();
+                Toast.makeText(getApplicationContext(), "Permission error.", Toast.LENGTH_SHORT).show();
+            }
+        }
+        return false;
+    }
+
+    public void showMsg(String msg, int time) {
+        showMsg(msg);
+        _handler.sendEmptyMessageDelayed(MSG_CANCLE_MSG, time);
+    }
+
+    public void showMsg(String msg) {
+        dismissMsg();
+        if (Build.VERSION.SDK_INT>=23 && Settings.canDrawOverlays(getApplicationContext())) {
+            _textView = new TextView(getApplicationContext());
+            _textView.setText(msg);
+            _textView.setBackgroundColor(Color.YELLOW);
+            _textView.setTextColor(Color.BLUE);
+
+            WindowManager.LayoutParams mLP = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    // Allows the view to be on top of the StatusBar
+                    WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
+                    // Keeps the button presses from going to the background window
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            // Enables the notification to recieve touch events
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                            // Draws over status bar
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                    , PixelFormat.TRANSLUCENT);
+
+            mLP.gravity = Gravity.TOP | Gravity.CENTER;
+            _windowManager.addView(_textView, mLP);
+        } else {
+            Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void dismissMsg() {
+        if(_textView != null) {
+            _windowManager.removeView(_textView);
+            _handler.removeMessages(MSG_CANCLE_MSG);
+            _textView = null;
+        }
+    }
+
 }
