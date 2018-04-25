@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">DumpHierarchy</string>
+    <string name="title_activity_main">DumpHierarchy</string>
+    <string name="app_description">使用方法:\n1. 进入辅助功能设置并向下滑动, 找到DumpHierarchy并打开.\n2. 去到你想获取布局的界面. 然后截取屏幕. 假如截图工具出现, 请马上取消掉, 否则会获取到截图工具的布局.\n3. 获取到的布局文件会放在 \\\\sdcard\\DumpHierarchy文件夹里, 你可以在app里查看或者在电脑上用uiautomator viewer查看.</string>
+    <string name="accessibility_service_description">请打开右上开关，在弹出的对话框中点击“确定”。\n
+    \n
+    开启后，可以通过使用截屏，将UI层次结构保存到/sdcard/DumpHierarchy文件夹内，即可在电脑中使用 UI Automator Viewer 打开查看, 更可以点击notification进入文件列表直接在手机上查看。</string>
+
+    <string name="DELAY_TIME_HELP_INFO">假如你的手机在截图后会自动打开截图编辑器，而你并不想截取到的是编辑器的布局，你最好设置这个延迟时间并在延迟时间内将截图编辑器取消。</string>
+
+    <string name="PLEASE_PERMIT_DRAWING_OVER_OTHER_APPS">请同意显示在顶部的权限。</string>
+
+    <string name="PERMISSION_ERROR">权限错误</string>
+
+    <string name="PERMISSION_CHECK_FAILED_PLEASE_CHECK_WRITE_EXTERNAL_STORAGE_PERMISSION">权限错误，请检查是否开启读写储存设备权限。</string>
+
+    <string name="SCREEN_CAPTURE_DETECTED_DUMP_UI_HIERARCHY_IN">检测到截图操作，将于%1$.2f s后抓取屏幕布局。</string>
+
+    <string name="DUMPHIERARCHY_RUNNING">DumpHierarchy Running</string>
+
+    <string name="TAKE_A_SCREENSHOT_TO_CAPTURE_UI_HIERARCHY">截取屏幕以抓取界面布局</string>
+
+    <string name="GET_ROOT_VIEW_FAILED_PLEASE_CHECK_YOUR_ACCESSIBILITY_SETTING">Get root view failed. Please check your Accessibility setting.</string>
+
+    <string name="DUMPING_UI_HIERARCHY">正在抓取界面布局...</string>
+
+    <string name="DUMP_UI_HIERARCHY_COMPLETED">界面布局抓取完成。</string>
+
+    <string name="DELAY">延迟</string>
+
+    <string name="MS_TO_DUMP_VIEW_STRUCTURE">ms 抓取界面布局。</string>
+
+    <string name="SHOW_PACKAGE_ACTIVITY_INFO">显示package/activity信息。</string>
+
+    <string name="ENTER_ACCESSIBILITY_SETTING">进入辅助功能设置</string>
+    <string name="BROWSER_DUMPED_HIERARCHY_FILES">浏览已抓取的界面布局文件</string>
+</resources>
