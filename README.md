@@ -6,7 +6,7 @@ Supporting dynamic screen.  
 获取Android手机界面的UI结构，使用UI Automator Viewer打开，支持动态界面。 
 
 # Apk download address
-[bitbottle.com](http://www.bitbottle.com/archives/287.html#4_APK)  
+[bitbottle.com](https://www.bitbottle.com/UIAutomatorViewer%E6%97%A0%E6%B3%95%E8%8E%B7%E5%8F%96%E5%8A%A8%E6%80%81%E9%A1%B5%E9%9D%A2%E7%9A%84UI%E5%B8%83%E5%B1%80%E7%9A%84%E8%A7%A3%E5%86%B3%E5%8A%9E%E6%B3%95/)  
 
 -------------------------
 # How to use
